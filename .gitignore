@@ -12,3 +12,8 @@ Thumbs.db
 # Generated files (created by installer)
 .env
 config/database.php
+
+# Database files
+*.sqlite
+*.sqlite3
+database/database.sqlite
