@@ -1,0 +1,34 @@
+<?php
+
+/**
+ * Example Seeder
+ * 
+ * This is an example seeder file to demonstrate how to create seeders.
+ * Rename this file to remove .example extension.
+ */
+
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+use DI\ContainerBuilder;
+use PDO;
+
+// Build DI container
+$containerBuilder = new ContainerBuilder();
+if (file_exists(__DIR__ . '/../../config/services.php')) {
+    $containerBuilder->addDefinitions(__DIR__ . '/../../config/services.php');
+}
+$container = $containerBuilder->build();
+
+// Get PDO instance
+$pdo = $container->get(PDO::class);
+
+// Example: Insert seed data
+$pdo->exec("
+    INSERT OR IGNORE INTO example_table (name, description) VALUES
+    ('Example Item 1', 'This is the first example item'),
+    ('Example Item 2', 'This is the second example item'),
+    ('Example Item 3', 'This is the third example item')
+");
+
+echo "✓ Example seeder executed successfully\n";
+

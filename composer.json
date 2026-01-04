@@ -1,0 +1,52 @@
+{
+    "name": "maaf/app",
+    "description": "MAAF Application Skeleton - A fresh MAAF application",
+    "type": "project",
+    "keywords": ["maaf", "framework", "skeleton", "application"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Bloch Tamás",
+            "email": "info@bloch.hu"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "maaf/core": "dev-main"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "scripts": {
+        "post-create-project-cmd": [
+            "@php install.php"
+        ],
+        "migrate": [
+            "@php run-migrations.php"
+        ],
+        "test": [
+            "phpunit"
+        ],
+        "lint": [
+            "php-cs-fixer fix --dry-run --diff",
+            "phpcs"
+        ],
+        "fix": [
+            "php-cs-fixer fix"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

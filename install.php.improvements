@@ -1,0 +1,293 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * MAAF App Installer - Javított verzió
+ * 
+ * Ez egy példa, hogyan lehetne kiegészíteni az installer-t
+ */
+
+// ... meglévő kód ...
+
+// ÚJ FUNKCIÓK:
+
+// 1. Git inicializálás
+function initializeGit(): void
+{
+    if (is_dir('.git')) {
+        echo "  ℹ️  Git már inicializálva\n";
+        return;
+    }
+    
+    exec('git init', $output, $returnCode);
+    if ($returnCode === 0) {
+        echo "  ✓ Git inicializálva\n";
+        
+        // Kezdeti commit
+        exec('git add .', $output, $returnCode);
+        exec('git commit -m "Initial commit"', $output, $returnCode);
+        if ($returnCode === 0) {
+            echo "  ✓ Kezdeti commit létrehozva\n";
+        }
+    } else {
+        echo "  ⚠️  Git inicializálás sikertelen (git nincs telepítve?)\n";
+    }
+}
+
+// 2. Database connection test
+function testDatabaseConnection(array $dbConfig, string $driver): bool
+{
+    try {
+        if ($driver === 'sqlite') {
+            $path = $dbConfig['database'] ?? 'database/database.sqlite';
+            $fullPath = __DIR__ . '/' . $path;
+            
+            // Könyvtár létrehozása, ha nem létezik
+            $dir = dirname($fullPath);
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            
+            // Fájl létrehozása, ha nem létezik
+            if (!file_exists($fullPath)) {
+                touch($fullPath);
+            }
+            
+            $pdo = new PDO('sqlite:' . $fullPath);
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $pdo->query('SELECT 1');
+            
+            return true;
+        } else {
+            $host = $dbConfig['host'] ?? 'localhost';
+            $port = $dbConfig['port'] ?? ($driver === 'mysql' ? '3306' : '5432');
+            $database = $dbConfig['database'] ?? '';
+            $username = $dbConfig['username'] ?? 'root';
+            $password = $dbConfig['password'] ?? '';
+            
+            $dsn = "{$driver}:host={$host};port={$port};dbname={$database};charset=utf8mb4";
+            $pdo = new PDO($dsn, $username, $password);
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $pdo->query('SELECT 1');
+            
+            return true;
+        }
+    } catch (PDOException $e) {
+        echo "  ❌ Adatbázis kapcsolat hiba: " . $e->getMessage() . "\n";
+        return false;
+    }
+}
+
+// 3. Environment validation
+function validateEnvironment(array $config): array
+{
+    $errors = [];
+    
+    // JWT Secret ellenőrzés
+    if (empty($config['jwtSecret']) || strlen($config['jwtSecret']) < 32) {
+        $errors[] = "JWT Secret minimum 32 karakter hosszúságú kell legyen";
+    }
+    
+    // Database ellenőrzés
+    if ($config['dbDriver'] !== 'sqlite' && empty($config['dbDatabase'])) {
+        $errors[] = "Adatbázis név kötelező MySQL/PostgreSQL esetén";
+    }
+    
+    return $errors;
+}
+
+// 4. Frontend inicializálás - teljes implementáció
+function initializeFrontend(string $type): void
+{
+    if ($type === 'none') {
+        return;
+    }
+    
+    $frontendDir = __DIR__ . '/frontend';
+    
+    if (is_dir($frontendDir)) {
+        echo "  ⚠️  Frontend könyvtár már létezik\n";
+        return;
+    }
+    
+    echo "  📦 Frontend inicializálása ({$type})...\n";
+    
+    // Vite template nevek
+    $templates = [
+        'react' => 'react',
+        'vue' => 'vue',
+        'vanilla' => 'vanilla',
+    ];
+    
+    $template = $templates[$type] ?? 'vanilla';
+    
+    // npm create vite parancs futtatása
+    $command = "npm create vite@latest frontend -- --template {$template} --yes";
+    exec($command, $output, $returnCode);
+    
+    if ($returnCode === 0) {
+        echo "  ✓ Frontend inicializálva\n";
+        
+        // Vite config frissítése proxy-val
+        updateViteConfig($frontendDir);
+        
+        // Frontend .env fájl létrehozása
+        createFrontendEnv($frontendDir);
+    } else {
+        echo "  ⚠️  Frontend inicializálás sikertelen (npm nincs telepítve?)\n";
+        echo "     Kézzel inicializáld: npm create vite@latest frontend -- --template {$template}\n";
+    }
+}
+
+function updateViteConfig(string $frontendDir): void
+{
+    $viteConfigPath = $frontendDir . '/vite.config.js';
+    
+    if (!file_exists($viteConfigPath)) {
+        return;
+    }
+    
+    $config = file_get_contents($viteConfigPath);
+    
+    // Proxy konfiguráció hozzáadása, ha még nincs
+    if (strpos($config, 'proxy') === false) {
+        $proxyConfig = <<<'JS'
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      }
+    }
+  },
+JS;
+        
+        // Beszúrás a defineConfig után
+        $config = str_replace(
+            'export default defineConfig({',
+            'export default defineConfig({' . "\n" . $proxyConfig,
+            $config
+        );
+        
+        file_put_contents($viteConfigPath, $config);
+        echo "  ✓ Vite proxy konfigurálva\n";
+    }
+}
+
+function createFrontendEnv(string $frontendDir): void
+{
+    $envContent = <<<ENV
+VITE_API_URL=http://localhost:8000
+ENV;
+    
+    file_put_contents($frontendDir . '/.env', $envContent);
+    echo "  ✓ Frontend .env fájl létrehozva\n";
+}
+
+// 5. Database migrations scaffold
+function createMigrationsDirectory(): void
+{
+    $migrationsDir = __DIR__ . '/database/migrations';
+    
+    if (!is_dir($migrationsDir)) {
+        mkdir($migrationsDir, 0755, true);
+        echo "  ✓ Migrációk könyvtár létrehozva\n";
+    }
+    
+    // Példa migráció fájl
+    $exampleMigration = <<<'SQL'
+-- Example migration
+-- This file demonstrates how to create a migration
+
+CREATE TABLE IF NOT EXISTS example_table (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+SQL;
+    
+    $exampleFile = $migrationsDir . '/0001_create_example_table.sql';
+    if (!file_exists($exampleFile)) {
+        file_put_contents($exampleFile, $exampleMigration);
+        echo "  ✓ Példa migráció létrehozva\n";
+    }
+}
+
+// 6. Health check endpoint létrehozása
+function createHealthCheckEndpoint(): void
+{
+    $healthController = <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Health\Controllers;
+
+use MAAF\Core\Http\Request;
+use MAAF\Core\Http\Response;
+
+final class HealthController
+{
+    public function check(Request $request): Response
+    {
+        return Response::json([
+            'status' => 'ok',
+            'timestamp' => date('c'),
+            'version' => '1.0.0',
+        ]);
+    }
+}
+PHP;
+    
+    $healthDir = __DIR__ . '/src/Modules/Health/Controllers';
+    if (!is_dir($healthDir)) {
+        mkdir($healthDir, 0755, true);
+    }
+    
+    file_put_contents($healthDir . '/HealthController.php', $healthController);
+    echo "  ✓ Health check endpoint létrehozva\n";
+}
+
+// HASZNÁLAT az installer-ben:
+
+// Az installer végén, a konfiguráció generálása után:
+
+// 1. Environment validation
+$validationErrors = validateEnvironment([
+    'jwtSecret' => $jwtSecret,
+    'dbDriver' => $selectedDb['driver'],
+    'dbDatabase' => $dbConfig['database'] ?? '',
+]);
+
+if (!empty($validationErrors)) {
+    echo "\n⚠️  Figyelmeztetések:\n";
+    foreach ($validationErrors as $error) {
+        echo "  - {$error}\n";
+    }
+}
+
+// 2. Database connection test
+echo "\n🔍 Adatbázis kapcsolat tesztelése...\n";
+if (testDatabaseConnection($dbConfig, $selectedDb['driver'])) {
+    echo "  ✓ Adatbázis kapcsolat sikeres\n";
+} else {
+    echo "  ⚠️  Adatbázis kapcsolat sikertelen - ellenőrizd a beállításokat\n";
+}
+
+// 3. Git inicializálás
+if ($installGitHooks) {
+    echo "\n📦 Git inicializálása...\n";
+    initializeGit();
+}
+
+// 4. Migrációk könyvtár
+echo "\n📁 Migrációk könyvtár létrehozása...\n";
+createMigrationsDirectory();
+
+// 5. Health check endpoint
+echo "\n🏥 Health check endpoint létrehozása...\n";
+createHealthCheckEndpoint();
+

@@ -1,0 +1,194 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * MAAF CLI Tool
+ * 
+ * Command-line interface for MAAF applications.
+ */
+
+if (php_sapi_name() !== 'cli') {
+    die('This script can only be run from the command line.');
+}
+
+$command = $argv[1] ?? null;
+
+if ($command === null) {
+    showHelp();
+    exit(0);
+}
+
+switch ($command) {
+    case 'migrate':
+        runMigrations();
+        break;
+    
+    case 'seed':
+        runSeeds();
+        break;
+    
+    case 'serve':
+        startServer();
+        break;
+    
+    case 'make:module':
+        $name = $argv[2] ?? null;
+        if ($name === null) {
+            echo "❌ Module name required\n";
+            echo "Usage: php maaf make:module ModuleName\n";
+            exit(1);
+        }
+        makeModule($name);
+        break;
+    
+    case 'make:controller':
+        $name = $argv[2] ?? null;
+        if ($name === null) {
+            echo "❌ Controller name required\n";
+            echo "Usage: php maaf make:controller ControllerName\n";
+            exit(1);
+        }
+        makeController($name);
+        break;
+    
+    case 'route:list':
+        listRoutes();
+        break;
+    
+    default:
+        echo "❌ Unknown command: {$command}\n";
+        showHelp();
+        exit(1);
+}
+
+function showHelp(): void
+{
+    echo "MAAF CLI Tool\n";
+    echo "=============\n\n";
+    echo "Available commands:\n";
+    echo "  migrate          Run database migrations\n";
+    echo "  seed             Run database seeders\n";
+    echo "  serve            Start development server\n";
+    echo "  make:module      Create a new module\n";
+    echo "  make:controller  Create a new controller\n";
+    echo "  route:list       List all registered routes\n";
+    echo "\n";
+}
+
+function runMigrations(): void
+{
+    require __DIR__ . '/run-migrations.php';
+}
+
+function runSeeds(): void
+{
+    require __DIR__ . '/run-seeds.php';
+}
+
+function startServer(): void
+{
+    global $argv;
+    $host = $argv[2] ?? 'localhost';
+    $port = $argv[3] ?? '8000';
+    
+    echo "Starting MAAF development server...\n";
+    echo "Server will be available at: http://{$host}:{$port}\n";
+    echo "Press Ctrl+C to stop the server\n\n";
+    
+    $publicDir = __DIR__ . '/public';
+    $command = sprintf('php -S %s:%s -t %s', escapeshellarg($host), escapeshellarg($port), escapeshellarg($publicDir));
+    passthru($command);
+}
+
+function makeModule(string $name): void
+{
+    $moduleDir = __DIR__ . '/src/Modules/' . $name;
+    
+    if (is_dir($moduleDir)) {
+        echo "❌ Module already exists: {$name}\n";
+        exit(1);
+    }
+    
+    mkdir($moduleDir . '/Controllers', 0755, true);
+    
+    // Create Module.php
+    $moduleContent = <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace App\\Modules\\{$name};
+
+use DI\\ContainerBuilder;
+use MAAF\\Core\\Routing\\Router;
+
+final class Module
+{
+    public static function registerServices(ContainerBuilder \$builder): void
+    {
+        // Register services here
+    }
+
+    public static function registerRoutes(Router \$router): void
+    {
+        // Register routes here
+    }
+}
+PHP;
+    
+    file_put_contents($moduleDir . '/Module.php', $moduleContent);
+    
+    echo "✓ Module created: {$name}\n";
+    echo "  Location: {$moduleDir}\n";
+}
+
+function makeController(string $name): void
+{
+    $moduleName = $argv[3] ?? 'Example';
+    $controllerDir = __DIR__ . '/src/Modules/' . $moduleName . '/Controllers';
+    
+    if (!is_dir($controllerDir)) {
+        echo "❌ Module not found: {$moduleName}\n";
+        exit(1);
+    }
+    
+    $controllerFile = $controllerDir . '/' . $name . '.php';
+    
+    if (file_exists($controllerFile)) {
+        echo "❌ Controller already exists: {$name}\n";
+        exit(1);
+    }
+    
+    $controllerContent = <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace App\\Modules\\{$moduleName}\\Controllers;
+
+use MAAF\\Core\\Http\\Request;
+use MAAF\\Core\\Http\\Response;
+
+final class {$name}
+{
+    public function index(Request \$request): Response
+    {
+        return Response::json([
+            'message' => 'Hello from {$name}'
+        ]);
+    }
+}
+PHP;
+    
+    file_put_contents($controllerFile, $controllerContent);
+    
+    echo "✓ Controller created: {$name}\n";
+    echo "  Location: {$controllerFile}\n";
+}
+
+function listRoutes(): void
+{
+    // TODO: Implement route listing
+    echo "Route listing not yet implemented\n";
+}
+

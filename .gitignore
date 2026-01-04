@@ -1,0 +1,14 @@
+/vendor/
+composer.lock
+.phpunit.result.cache
+.phpstan/
+.idea/
+.vscode/
+*.log
+*.cache
+.DS_Store
+Thumbs.db
+
+# Generated files (created by installer)
+.env
+config/database.php
