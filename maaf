@@ -35,10 +35,25 @@ switch ($command) {
         $name = $argv[2] ?? null;
         if ($name === null) {
             echo "❌ Module name required\n";
-            echo "Usage: php maaf make:module ModuleName\n";
+            echo "Usage: php maaf make:module ModuleName [options]\n";
+            echo "\nOptions:\n";
+            echo "  --template=TEMPLATE    Template type (api, crud, auth, basic)\n";
+            echo "  --interactive          Interactive mode\n";
+            echo "  --namespace=NS         Module namespace\n";
+            echo "  --path=PATH            Modules directory path\n";
             exit(1);
         }
         makeModule($name);
+        break;
+    
+    case 'module:validate':
+        $modulePath = $argv[2] ?? null;
+        if ($modulePath === null) {
+            echo "❌ Module path required\n";
+            echo "Usage: php maaf module:validate <module-path>\n";
+            exit(1);
+        }
+        validateModule($modulePath);
         break;
     
     case 'make:controller':
@@ -71,6 +86,7 @@ function showHelp(): void
     echo "  serve            Start development server\n";
     echo "  make:module      Create a new module\n";
     echo "  make:controller  Create a new controller\n";
+    echo "  module:validate  Validate module structure\n";
     echo "  route:list       List all registered routes\n";
     echo "\n";
 }
@@ -102,6 +118,26 @@ function startServer(): void
 
 function makeModule(string $name): void
 {
+    // Use MAAF Core module generator if available
+    if (class_exists(\MAAF\Core\Cli\Cli::class)) {
+        require_once __DIR__ . '/vendor/autoload.php';
+        
+        // Build container
+        $containerBuilder = new \DI\ContainerBuilder();
+        if (file_exists(__DIR__ . '/config/services.php')) {
+            $containerBuilder->addDefinitions(__DIR__ . '/config/services.php');
+        }
+        $container = $containerBuilder->build();
+        
+        // Create CLI instance
+        $cli = new \MAAF\Core\Cli\Cli($container);
+        
+        // Run make:module command
+        $args = array_merge(['make:module', $name], array_slice($GLOBALS['argv'], 3));
+        exit($cli->run($args));
+    }
+    
+    // Fallback to basic implementation
     $moduleDir = __DIR__ . '/src/Modules/' . $name;
     
     if (is_dir($moduleDir)) {
@@ -120,9 +156,10 @@ declare(strict_types=1);
 namespace App\\Modules\\{$name};
 
 use DI\\ContainerBuilder;
+use MAAF\\Core\\ModuleLoader\\ModuleInterface;
 use MAAF\\Core\\Routing\\Router;
 
-final class Module
+final class Module implements ModuleInterface
 {
     public static function registerServices(ContainerBuilder \$builder): void
     {
@@ -140,6 +177,7 @@ PHP;
     
     echo "✓ Module created: {$name}\n";
     echo "  Location: {$moduleDir}\n";
+    echo "\n💡 Tip: Use 'php maaf make:module {$name} --interactive' for advanced options\n";
 }
 
 function makeController(string $name): void
@@ -190,5 +228,29 @@ function listRoutes(): void
 {
     // TODO: Implement route listing
     echo "Route listing not yet implemented\n";
+}
+
+function validateModule(string $modulePath): void
+{
+    // Use MAAF Core validator if available
+    if (class_exists(\MAAF\Core\Cli\Cli::class)) {
+        require_once __DIR__ . '/vendor/autoload.php';
+        
+        // Build container
+        $containerBuilder = new \DI\ContainerBuilder();
+        if (file_exists(__DIR__ . '/config/services.php')) {
+            $containerBuilder->addDefinitions(__DIR__ . '/config/services.php');
+        }
+        $container = $containerBuilder->build();
+        
+        // Create CLI instance
+        $cli = new \MAAF\Core\Cli\Cli($container);
+        
+        // Run module:validate command
+        exit($cli->run(['module:validate', $modulePath]));
+    }
+    
+    echo "❌ Module validator not available. Install maaf/core package.\n";
+    exit(1);
 }
 
