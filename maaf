@@ -253,4 +253,3 @@ function validateModule(string $modulePath): void
     echo "❌ Module validator not available. Install maaf/core package.\n";
     exit(1);
 }
-
